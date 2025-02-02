@@ -3,40 +3,86 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const AuthForm = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [adminCode, setAdminCode] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (isLogin) {
-      // Here you would typically make an API call to verify credentials
-      toast({
-        title: "Logging in...",
-        description: "This is a demo. In a real app, this would verify your credentials.",
-      });
-    } else {
-      // For demo purposes, let's hardcode the admin code
-      const CORRECT_ADMIN_CODE = "secret123";
-      
-      if (adminCode !== CORRECT_ADMIN_CODE) {
-        toast({
-          variant: "destructive",
-          title: "Invalid admin code",
-          description: "Please enter the correct admin code to create an account.",
+    setIsLoading(true);
+
+    try {
+      if (isLogin) {
+        // Handle login
+        const { error } = await supabase.auth.signInWithPassword({
+          email: username,
+          password: password,
         });
-        return;
+
+        if (error) throw error;
+
+        toast({
+          title: "Welcome back!",
+          description: "You have successfully logged in.",
+        });
+      } else {
+        // Verify admin code first
+        const { data: adminCodes, error: adminCodeError } = await supabase
+          .from('admin_codes')
+          .select('code')
+          .eq('code', adminCode)
+          .single();
+
+        if (adminCodeError || !adminCodes) {
+          toast({
+            variant: "destructive",
+            title: "Invalid admin code",
+            description: "Please enter a valid admin code to create an account.",
+          });
+          return;
+        }
+
+        // Create the user account
+        const { data: authData, error: signUpError } = await supabase.auth.signUp({
+          email: username,
+          password: password,
+        });
+
+        if (signUpError) throw signUpError;
+
+        // Create the user profile
+        if (authData.user) {
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .insert([
+              {
+                id: authData.user.id,
+                username: username,
+              }
+            ]);
+
+          if (profileError) throw profileError;
+        }
+
+        toast({
+          title: "Account created!",
+          description: "Your account has been created successfully.",
+        });
       }
-      
+    } catch (error: any) {
       toast({
-        title: "Account created!",
-        description: "Your account has been created successfully.",
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "An error occurred. Please try again.",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -49,12 +95,14 @@ const AuthForm = () => {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="relative">
           <Input
-            type="text"
+            type="email"
             id="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             className="w-full bg-background/50 border-accent"
-            placeholder="Username"
+            placeholder="Email"
+            disabled={isLoading}
+            required
           />
         </div>
 
@@ -66,24 +114,29 @@ const AuthForm = () => {
             onChange={(e) => setPassword(e.target.value)}
             className="w-full bg-background/50 border-accent"
             placeholder="Password"
+            disabled={isLoading}
+            required
+            minLength={6}
           />
         </div>
 
         {!isLogin && (
           <div className="relative animate-slideUp">
             <Input
-              type="password"
+              type="text"
               id="adminCode"
               value={adminCode}
               onChange={(e) => setAdminCode(e.target.value)}
               className="w-full bg-background/50 border-accent"
               placeholder="Admin Code"
+              disabled={isLoading}
+              required
             />
           </div>
         )}
 
-        <Button type="submit" className="w-full">
-          {isLogin ? "Login" : "Create Account"}
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? "Processing..." : (isLogin ? "Login" : "Create Account")}
         </Button>
       </form>
 
@@ -91,6 +144,7 @@ const AuthForm = () => {
         <button
           onClick={() => setIsLogin(!isLogin)}
           className="text-sm text-muted-foreground hover:text-primary transition-colors"
+          disabled={isLoading}
         >
           {isLogin ? "Need an account? Sign up" : "Already have an account? Login"}
         </button>
