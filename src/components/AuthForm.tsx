@@ -19,9 +19,9 @@ const AuthForm = () => {
 
     try {
       if (isLogin) {
-        // Handle login
+        // Handle login with username
         const { error } = await supabase.auth.signInWithPassword({
-          email: username,
+          email: `${username}@virtual.com`,
           password: password,
         });
 
@@ -48,27 +48,13 @@ const AuthForm = () => {
           return;
         }
 
-        // Create the user account
-        const { data: authData, error: signUpError } = await supabase.auth.signUp({
-          email: username,
-          password: password,
+        // Create account using the custom function
+        const { data, error: fnError } = await supabase.rpc('handle_username_auth', {
+          username: username,
+          password: password
         });
 
-        if (signUpError) throw signUpError;
-
-        // Create the user profile
-        if (authData.user) {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert([
-              {
-                id: authData.user.id,
-                username: username,
-              }
-            ]);
-
-          if (profileError) throw profileError;
-        }
+        if (fnError) throw fnError;
 
         toast({
           title: "Account created!",
@@ -95,12 +81,12 @@ const AuthForm = () => {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="relative">
           <Input
-            type="email"
+            type="text"
             id="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             className="w-full bg-background/50 border-accent"
-            placeholder="Email"
+            placeholder="Username"
             disabled={isLoading}
             required
           />
