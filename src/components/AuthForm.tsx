@@ -37,14 +37,17 @@ const AuthForm = () => {
           .from('admin_codes')
           .select('code')
           .eq('code', adminCode)
-          .single();
+          .maybeSingle();
 
-        if (adminCodeError || !adminCodes) {
+        if (adminCodeError) throw adminCodeError;
+        
+        if (!adminCodes) {
           toast({
             variant: "destructive",
             title: "Invalid admin code",
             description: "Please enter a valid admin code to create an account.",
           });
+          setIsLoading(false);
           return;
         }
 
