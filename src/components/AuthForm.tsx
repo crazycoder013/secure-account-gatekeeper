@@ -54,12 +54,12 @@ const AuthForm = () => {
 
   const createAccount = async () => {
     try {
-      const { data, error: fnError } = await supabase.rpc('handle_username_auth', {
-        username: username,
-        password: password
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: { username, password }
       });
 
-      if (fnError) throw fnError;
+      if (error) throw error;
+      if (!data?.user) throw new Error('Failed to create user account');
 
       toast({
         title: "Account created!",
