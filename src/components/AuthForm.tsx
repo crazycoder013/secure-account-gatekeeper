@@ -26,6 +26,9 @@ const AuthForm = () => {
         title: "Welcome back!",
         description: "You have successfully logged in.",
       });
+
+      // Redirect to jeremy.resnak.com/chat/index.php after successful login
+      window.location.href = 'https://jeremy.resnak.com/chat/index.php';
     } catch (error: any) {
       toast({
         variant: "destructive",
