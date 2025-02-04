@@ -24,16 +24,36 @@ Deno.serve(async (req) => {
     )
 
     const { username, password } = await req.json()
+    const email = `${username}@virtual.com`
+
+    // First check if user exists
+    const { data: existingUser } = await supabaseClient.auth.admin.listUsers()
+    const userExists = existingUser?.users.some(user => user.email === email)
+
+    if (userExists) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Username already taken. Please choose a different username.' 
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400 
+        }
+      )
+    }
 
     // Create the user
     const { data: userData, error: signUpError } = await supabaseClient.auth.admin.createUser({
-      email: `${username}@virtual.com`,
+      email: email,
       password: password,
       email_confirm: true,
       user_metadata: { username }
     })
 
-    if (signUpError) throw signUpError
+    if (signUpError) {
+      console.error('Error creating user:', signUpError)
+      throw signUpError
+    }
 
     // Create the profile
     const { error: profileError } = await supabaseClient
@@ -45,7 +65,10 @@ Deno.serve(async (req) => {
         }
       ])
 
-    if (profileError) throw profileError
+    if (profileError) {
+      console.error('Error creating profile:', profileError)
+      throw profileError
+    }
 
     return new Response(
       JSON.stringify({ user: userData.user }),
@@ -55,8 +78,11 @@ Deno.serve(async (req) => {
       }
     )
   } catch (error) {
+    console.error('Server error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message || 'An error occurred while creating the account.' 
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,

@@ -61,7 +61,20 @@ const AuthForm = () => {
         body: { username, password }
       });
 
-      if (error) throw error;
+      if (error) {
+        const errorMessage = error.message || 'Failed to create user account';
+        // Check if it's a JSON string containing our custom error
+        try {
+          const parsedError = JSON.parse(error.message);
+          if (parsedError.error) {
+            throw new Error(parsedError.error);
+          }
+        } catch {
+          // If parsing fails, use the original error message
+          throw new Error(errorMessage);
+        }
+      }
+
       if (!data?.user) throw new Error('Failed to create user account');
 
       toast({
