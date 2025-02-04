@@ -13,63 +13,87 @@ const AuthForm = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
+  const handleLogin = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: `${username}@virtual.com`,
+        password: password,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Welcome back!",
+        description: "You have successfully logged in.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Login failed",
+        description: error.message || "An error occurred during login.",
+      });
+      throw error;
+    }
+  };
+
+  const verifyAdminCode = async () => {
+    const { data: adminCodes, error: adminCodeError } = await supabase
+      .from('admin_codes')
+      .select('code')
+      .eq('code', adminCode)
+      .maybeSingle();
+
+    if (adminCodeError) throw adminCodeError;
+    
+    if (!adminCodes) {
+      throw new Error("Invalid admin code. Please try again.");
+    }
+
+    return true;
+  };
+
+  const createAccount = async () => {
+    try {
+      const { data, error: fnError } = await supabase.rpc('handle_username_auth', {
+        username: username,
+        password: password
+      });
+
+      if (fnError) throw fnError;
+
+      toast({
+        title: "Account created!",
+        description: "Your account has been created successfully. You can now log in.",
+      });
+
+      return data;
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Account creation failed",
+        description: error.message || "An error occurred while creating your account.",
+      });
+      throw error;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
       if (isLogin) {
-        // Handle login with username
-        const { error } = await supabase.auth.signInWithPassword({
-          email: `${username}@virtual.com`,
-          password: password,
-        });
-
-        if (error) throw error;
-
-        toast({
-          title: "Welcome back!",
-          description: "You have successfully logged in.",
-        });
+        await handleLogin();
       } else {
-        // Verify admin code first
-        const { data: adminCodes, error: adminCodeError } = await supabase
-          .from('admin_codes')
-          .select('code')
-          .eq('code', adminCode)
-          .maybeSingle();
-
-        if (adminCodeError) throw adminCodeError;
-        
-        if (!adminCodes) {
-          toast({
-            variant: "destructive",
-            title: "Invalid admin code",
-            description: "Please enter a valid admin code to create an account.",
-          });
-          setIsLoading(false);
-          return;
-        }
-
-        // Create account using the custom function
-        const { data, error: fnError } = await supabase.rpc('handle_username_auth', {
-          username: username,
-          password: password
-        });
-
-        if (fnError) throw fnError;
-
-        toast({
-          title: "Account created!",
-          description: "Your account has been created successfully.",
-        });
+        await verifyAdminCode();
+        await createAccount();
+        // Switch to login mode after successful account creation
+        setIsLogin(true);
+        setAdminCode('');
       }
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "An error occurred. Please try again.",
-      });
+      console.error('Auth error:', error);
+      // Toast notifications are handled in the individual functions
     } finally {
       setIsLoading(false);
     }
@@ -131,7 +155,10 @@ const AuthForm = () => {
 
       <div className="text-center">
         <button
-          onClick={() => setIsLogin(!isLogin)}
+          onClick={() => {
+            setIsLogin(!isLogin);
+            setAdminCode('');
+          }}
           className="text-sm text-muted-foreground hover:text-primary transition-colors"
           disabled={isLoading}
         >
